@@ -1,12 +1,17 @@
 /*
  * ============================================================================
- * 预设助手 · 预设脚本 v3.1.1
+ * 预设助手 · 预设脚本 v3.1.2
  * （前身为「剧情编年史」，v3.1 起更名「预设助手」）
  * ============================================================================
  *
  * 本文件是代码主体，托管在 https://github.com/haodayizhiyu404/yushe
  * 平时不需要手动维护本文件——酒馆助手的预设脚本库里只需粘贴 loader.js，
  * 每次打开页面会自动从仓库拉取最新版本执行（拉取失败用本地缓存兜底）。
+ *
+ * v3.1.2 修正：
+ *   - F12/设备仿真时面板飞出屏幕顶部：改 margin:auto 居中 + overlay 可滚动 + 限高 94vh
+ *   - 文本框右下角拖动拉伸失效：移除 height:auto !important（它挡住了拖动写入的内联高度）
+ *   - 窄屏自适应：面板全屏、导航变顶部横排、走向区可折叠（窄屏默认折起）
  *
  * v3.1.1 修正：
  *   - 设置页文本框被 flex 布局压缩成不足一行：tab 子项禁止压缩
@@ -48,7 +53,7 @@
  */
 
 $(() => {
-    const VERSION = '3.1.1';
+    const VERSION = '3.1.2';
     const SCRIPT_ID = 'preset-novel-summarizer';
     const BUTTON_NAME = '🧰 预设助手';
 
@@ -466,10 +471,12 @@ $(() => {
 
     const YCH_STYLE_ID = 'ych-style';
     const YCH_CSS = `
-.ych-overlay{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;
+.ych-overlay{position:fixed;inset:0;z-index:20000;display:flex;overflow:auto;
     background:rgba(50,45,35,.32);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
 .ych-overlay[data-theme="dark"]{background:rgba(0,0,0,.5);}
+/* margin:auto 居中：面板比视口高时对齐顶部并可滚动，不会被居中裁掉上半截 */
 .ych-panel{
+    margin:auto;max-height:94vh;
     --bg:#f6f2ea;--surface:#fffdf7;--surface2:#efe9dc;
     --text:#45403a;--dim:#98917f;
     --border:rgba(80,70,50,.16);
@@ -522,7 +529,8 @@ $(() => {
 .ych-overlay .ych-panel input.ych-input:focus,.ych-overlay .ych-panel textarea.ych-input:focus{
     border-color:var(--accent-line) !important;box-shadow:0 0 0 2px var(--accent-soft);}
 .ych-overlay .ych-panel .ych-input::placeholder{color:var(--placeholder) !important;opacity:1;}
-.ych-overlay .ych-panel textarea.ych-input{height:auto !important;resize:vertical;line-height:1.6;}
+/* 不写死 height（rows 决定默认高），否则 !important 会挡住拖动拉伸写入的内联 height */
+.ych-overlay .ych-panel textarea.ych-input{resize:vertical !important;line-height:1.6;}
 .ych-overlay .ych-panel textarea.ych-summary-text{flex:1;min-height:220px;line-height:1.85;padding:12px 14px;}
 .ych-btn{background:var(--surface);border:1px solid var(--border);border-radius:8px;
     padding:6px 14px;color:var(--text);font-size:14px;cursor:pointer;white-space:nowrap;
@@ -561,6 +569,14 @@ $(() => {
 .ych-tab::-webkit-scrollbar-thumb,.ych-log::-webkit-scrollbar-thumb,.ych-content textarea::-webkit-scrollbar-thumb{
     background:var(--border);border-radius:4px;}
 .ych-tab::-webkit-scrollbar-track,.ych-log::-webkit-scrollbar-track,.ych-content textarea::-webkit-scrollbar-track{background:transparent;}
+/* 窄屏（手机/设备仿真）：面板全屏、左侧导航变顶部横排 */
+@media (max-width:640px){
+    .ych-panel{width:100vw;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0;}
+    .ych-body{flex-direction:column;}
+    .ych-nav{width:auto;flex-direction:row;padding:6px 8px;border-right:none;border-bottom:1px solid var(--border);overflow-x:auto;}
+    .ych-nav-item{flex:1;text-align:center;padding:8px 6px;}
+    .ych-nav-item.ych-active{box-shadow:inset 0 -2px 0 var(--accent);}
+}
 `;
 
     function ensureStyle(doc) {
@@ -744,11 +760,16 @@ $(() => {
     function renderPlannerTab($content, ctx) {
         const $tab = $(`
             <div class="ych-tab">
-                <div class="ych-label">当前近期走向（注入 depth 0 规则层，可手动编辑，自动保存；演完即弃，不是长期主线）：</div>
-                <textarea class="ych-input np-outline" rows="3" style="flex:0 0 auto;"></textarea>
-                <div class="ych-row">
-                    <button class="ych-btn ych-btn-primary np-adopt" title="从最近一条含走向模块的策划回复中提取标签内容，录入走向框（覆盖旧的）">📌 采纳走向</button>
-                    <button class="ych-btn np-clear-outline" title="走向已上演，撤掉注入">✅ 已演完</button>
+                <div class="ych-row" style="justify-content:space-between;">
+                    <div class="ych-label" style="margin:0;">当前近期走向（注入 depth 0 规则层，自动保存；演完即弃，不是长期主线）：</div>
+                    <a href="javascript:;" class="np-outline-toggle ych-dim" style="white-space:nowrap;cursor:pointer;">收起 ▴</a>
+                </div>
+                <div class="np-outline-body" style="display:flex;flex-direction:column;gap:10px;">
+                    <textarea class="ych-input np-outline" rows="3"></textarea>
+                    <div class="ych-row">
+                        <button class="ych-btn ych-btn-primary np-adopt" title="从最近一条含走向模块的策划回复中提取标签内容，录入走向框（覆盖旧的）">📌 采纳走向</button>
+                        <button class="ych-btn np-clear-outline" title="走向已上演，撤掉注入">✅ 已演完</button>
+                    </div>
                 </div>
                 <hr class="ych-hr" />
                 <div class="np-styles-wrap" style="display:flex;flex-direction:column;gap:6px;">
@@ -773,6 +794,16 @@ $(() => {
         const $input = $tab.find('.np-input');
         const $sendBtn = $tab.find('.np-send');
         const $styles = $tab.find('.np-styles');
+
+        // 走向区可折叠（窄屏默认折起，把空间让给讨论区；采纳时自动展开）
+        const $outlineBody = $tab.find('.np-outline-body');
+        const $outlineToggle = $tab.find('.np-outline-toggle');
+        const setOutlineCollapsed = (collapsed) => {
+            $outlineBody.toggle(!collapsed);
+            $outlineToggle.text(collapsed ? '展开 ▾' : '收起 ▴');
+        };
+        $outlineToggle.on('click', () => setOutlineCollapsed($outlineBody.is(':visible')));
+        if (window.parent.innerWidth < 640) setOutlineCollapsed(true);
 
         /** 发送键三态：有字=发新消息；空+末尾是user=重新生成；空+末尾是AI=置灰 */
         const updateSendState = () => {
@@ -902,6 +933,7 @@ $(() => {
                 return;
             }
             $outline.val(extractOutline(hit.content, tag)).trigger('input');
+            setOutlineCollapsed(false);  // 采纳后展开走向区，方便确认/编辑
             toastr.success('已采纳走向模块（覆盖旧走向，可继续编辑，自动保存）');
         });
 
