@@ -1,12 +1,20 @@
 /*
  * ============================================================================
- * 预设助手 · 预设脚本 v3.1.4
+ * 预设助手 · 预设脚本 v3.1.5
  * （前身为「剧情编年史」，v3.1 起更名「预设助手」）
  * ============================================================================
  *
  * 本文件是代码主体，托管在 https://github.com/haodayizhiyu404/yushe
  * 平时不需要手动维护本文件——酒馆助手的预设脚本库里只需粘贴 loader.js，
  * 每次打开页面会自动从仓库拉取最新版本执行（拉取失败用本地缓存兜底）。
+ *
+ * v3.1.5 修正：
+ *   - 移动端（≤640px）规划页无法滚动、看不到底部输入框：.ych-content 补 min-height:0
+ *     （窄屏纵列布局下缺它会被内容撑高，输入框顶出面板被裁，滚动容器也失效）；
+ *     滚动区补 touch-action:pan-y + overscroll-behavior:contain（ST 移动端 body 是 touch-action:none）
+ *   - 规划页走向区不再默认折叠（任何屏幕默认展开，核心入口不藏起来）
+ *   - 发送反馈重做：用户消息立刻上屏 → 追加「✍️ 思考中」占位气泡 → 回复到达后
+ *     滚动定格在 AI 回复头部；删除等重渲染保持滚动位置不回顶
  *
  * v3.1.4 修正：
  *   - 视口宽度 <1000px 时面板整体消失（根因，已用真机环境无头浏览器验证）：
@@ -66,7 +74,7 @@
  */
 
 $(() => {
-    const VERSION = '3.1.4';
+    const VERSION = '3.1.5';
     const SCRIPT_ID = 'preset-novel-summarizer';
     const BUTTON_NAME = '🧰 预设助手';
 
@@ -423,6 +431,7 @@ $(() => {
     /**
      * 针对讨论记录末尾的 user 消息生成一条策划回复。
      * 成功才推入 AI 回复；失败时 user 消息留在末尾，面板里点「重新生成」即可重试。
+     * （user 消息的入档由调用方在调用前完成，这样面板能先把用户消息显示出来再等待回复）
      */
     async function generatePlannerReply() {
         const settings = loadSettings();
@@ -469,17 +478,6 @@ $(() => {
         }
     }
 
-    /** 发送一条新的讨论消息（先入记录），再生成策划回复 */
-    async function sendPlannerMessage(text) {
-        const data = getChatData();
-        data.planningHistory.push({ role: 'user', content: text });
-        if (data.planningHistory.length > 80) {
-            data.planningHistory = data.planningHistory.slice(-80);
-        }
-        saveChatData(data);
-        return await generatePlannerReply();
-    }
-
     // ============================ UI：样式（日/夜双主题） ============================
 
     const YCH_STYLE_ID = 'ych-style';
@@ -488,7 +486,7 @@ $(() => {
    包含块；<1000px 时 ST 移动端把 body 设为 position:fixed，html 高度塌成 0，inset:0
    会算出 0 高度的蒙层把面板整个裁掉。vh/dvh 视口单位始终跟随真实视口，不受此影响。 */
 .ych-overlay{position:fixed;top:0;left:0;width:100%;height:100vh;height:100dvh;
-    z-index:20000;display:block;overflow:auto;
+    z-index:20000;display:block;overflow:auto;touch-action:pan-y;
     background:rgba(50,45,35,.32);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
 .ych-overlay[data-theme="dark"]{background:rgba(0,0,0,.5);}
 /* 块级布局 + margin 居中：任何视口尺寸下面板都完整落在屏幕内（flex 居中在溢出时会裁掉上半截） */
@@ -528,8 +526,11 @@ $(() => {
 .ych-nav-item:hover{color:var(--text);background:var(--accent-soft);}
 .ych-nav-item.ych-active{color:var(--text);background:var(--accent-soft);
     box-shadow:inset 2px 0 0 var(--accent);font-weight:600;}
-.ych-content{flex:1;min-width:0;padding:16px 18px;display:flex;}
-.ych-tab{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0;height:100%;overflow-y:auto;padding-right:4px;}
+/* min-height:0 关键：窄屏 .ych-body 变纵列后，缺了它 .ych-content 不肯收缩，
+   内容把输入框顶出面板被 overflow:hidden 裁掉，且 .ych-tab 被撑成等高、永不滚动 */
+.ych-content{flex:1;min-width:0;min-height:0;padding:16px 18px;display:flex;}
+.ych-tab{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0;height:100%;overflow-y:auto;padding-right:4px;
+    touch-action:pan-y;overscroll-behavior:contain;}
 /* 内容超出时容器自己滚动，子项禁止被 flex 压缩（否则 textarea 会被挤成不足一行） */
 .ych-tab>*{flex-shrink:0;}
 .ych-label{color:var(--dim);font-size:13px;}
@@ -565,7 +566,8 @@ $(() => {
 .ych-chip:hover:not(:disabled){background:var(--surface2);}
 .ych-chip:disabled{opacity:.4;cursor:default;}
 .ych-chip-active{background:var(--accent-soft);border-color:var(--accent-line);font-weight:600;}
-.ych-log{flex:1;min-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;
+.ych-log{flex:1;min-height:150px;overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;
+    border:1px solid var(--border);border-radius:10px;
     padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface2);}
 .ych-bubble{padding:8px 14px;border-radius:12px;line-height:1.7;font-size:14px;}
 /* pre-wrap 只套在文字层：保留消息内的换行，又不把 HTML 结构空白渲染出来 */
@@ -580,6 +582,8 @@ $(() => {
 .ych-msg:hover .ych-msg-actions{opacity:.85;}
 .ych-msg-actions a{color:var(--dim);text-decoration:none;cursor:pointer;}
 .ych-msg-actions a:hover{color:var(--text);}
+/* AI 回复中的占位气泡（不入记录，渲染时被自然冲掉） */
+.ych-pending .ych-bubble-text{color:var(--dim);font-style:italic;}
 .ych-check{display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;font-size:14px;}
 .ych-saved{font-size:12px;color:var(--accent);opacity:0;transition:opacity .3s;}
 .ych-tab::-webkit-scrollbar,.ych-log::-webkit-scrollbar,.ych-content textarea::-webkit-scrollbar{width:8px;}
@@ -793,7 +797,7 @@ $(() => {
                     <div class="ych-label" style="margin:0;">🎲 快速提案（点一个风格，按设置里的提案模板发出方向指令）：</div>
                     <div class="ych-row np-styles"></div>
                 </div>
-                <div class="ych-label">规划讨论（悬停气泡可 ✕ 删除，最后一条策划回复可 ⟳ 重 roll）：</div>
+                <div class="ych-label">规划讨论（悬停气泡可 🗑 删除，最后一条策划回复可 ⟳ 重 roll）：</div>
                 <div class="ych-log np-log"></div>
                 <div style="display:flex;gap:8px;align-items:flex-end;">
                     <textarea class="ych-input np-input" rows="2" style="flex:1 1 auto;" placeholder="对提案不满意？在这里微调，比如「再激烈一点」「换一个方向」"></textarea>
@@ -812,7 +816,7 @@ $(() => {
         const $sendBtn = $tab.find('.np-send');
         const $styles = $tab.find('.np-styles');
 
-        // 走向区可折叠（窄屏默认折起，把空间让给讨论区；采纳时自动展开）
+        // 走向区可手动折叠，但任何屏幕都默认展开——它是核心入口，藏起来用户可能根本不知道有这块
         const $outlineBody = $tab.find('.np-outline-body');
         const $outlineToggle = $tab.find('.np-outline-toggle');
         const setOutlineCollapsed = (collapsed) => {
@@ -820,7 +824,6 @@ $(() => {
             $outlineToggle.text(collapsed ? '展开 ▾' : '收起 ▴');
         };
         $outlineToggle.on('click', () => setOutlineCollapsed($outlineBody.is(':visible')));
-        if (window.parent.innerWidth < 640) setOutlineCollapsed(true);
 
         /** 发送键三态：有字=发新消息；空+末尾是user=重新生成；空+末尾是AI=置灰 */
         const updateSendState = () => {
@@ -831,7 +834,11 @@ $(() => {
             $sendBtn.text(hasText ? '💬 发送' : (lastIsUser ? '♻️ 重新生成' : '💬 发送'));
         };
 
-        /** 统一发送流程：有 text 发新消息，空 text 针对末尾 user 消息重新生成 */
+        /**
+         * 统一发送流程：有 text 发新消息，空 text 针对末尾 user 消息重新生成。
+         * 反馈节奏：用户消息立刻上屏 → 追加「思考中」占位气泡 → 回复到达后定格在回复头部；
+         * 失败时用户消息留在末尾，发送键变 ♻️重新生成 可重试。
+         */
         const doSend = async (text) => {
             if (isPlanning) {
                 toastr.warning('策划正在思考中，请稍等');
@@ -842,8 +849,26 @@ $(() => {
             $sendBtn.prop('disabled', true).text('思考中...');
             $styles.find('button').prop('disabled', true);
             try {
-                const reply = text ? await sendPlannerMessage(text) : await generatePlannerReply();
-                renderLog();
+                if (text) {
+                    const d = getChatData();
+                    d.planningHistory.push({ role: 'user', content: text });
+                    // 讨论记录最多保留 40 轮，防止无限膨胀
+                    if (d.planningHistory.length > 80) {
+                        d.planningHistory = d.planningHistory.slice(-80);
+                    }
+                    saveChatData(d);
+                }
+                renderLog('bottom');  // 自己的消息立刻可见，不干等
+                const $pending = $(`
+                    <div class="ych-msg ych-msg-ai ych-pending">
+                        <div class="ych-bubble ych-bubble-ai"><div class="ych-bubble-text">✍️ 策划思考中，正在回复…</div></div>
+                    </div>
+                `);
+                $log.append($pending);
+                $log.scrollTop($log[0].scrollHeight);
+
+                const reply = await generatePlannerReply();
+                renderLog(reply ? 'ai-head' : 'bottom');  // 占位气泡不入记录，重建时自然消失
                 if (reply) {
                     const tag = loadSettings().outlineTag;
                     if (!extractOutline(reply, tag)) {
@@ -857,8 +882,15 @@ $(() => {
             }
         };
 
-        const renderLog = () => {
+        /**
+         * 重建讨论区。滚动策略：
+         *   'bottom'  滚到底（打开面板、发出新消息）
+         *   'ai-head' 定格在最新 AI 回复的头部（回复到达时，不看中间不看尾巴）
+         *   'preserve'（默认）保持原滚动位置，不跳动（删除等重渲染）
+         */
+        const renderLog = (scrollMode = 'preserve') => {
             const hist = getChatData().planningHistory;
+            const prevScroll = $log[0] ? $log.scrollTop() : 0;
             $log.empty();
             if (hist.length === 0) {
                 $log.append('<div class="ych-dim">还没有讨论记录。点上面的风格按钮直接出一条提案，或自己描述想要的方向。</div>');
@@ -896,11 +928,22 @@ $(() => {
                 }
                 $log.append($msg);
             });
-            $log.scrollTop($log[0].scrollHeight);
+            const logEl = $log[0];
+            if (scrollMode === 'bottom') {
+                $log.scrollTop(logEl.scrollHeight);
+            } else if (scrollMode === 'ai-head') {
+                const lastAi = $log.find('.ych-msg-ai').last()[0];
+                if (lastAi) {
+                    const top = lastAi.getBoundingClientRect().top - logEl.getBoundingClientRect().top + logEl.scrollTop;
+                    logEl.scrollTop = Math.max(0, top - 10);
+                }
+            } else {
+                $log.scrollTop(prevScroll);
+            }
         };
 
         $outline.val(getChatData().outline);
-        renderLog();
+        renderLog('bottom');  // 打开面板先落到最后一条
         updateSendState();
         $input.on('input', updateSendState);
 
