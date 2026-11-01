@@ -1,15 +1,23 @@
 /*
  * ============================================================================
- * 剧情编年史 · 预设总结脚本 v3.0.0
+ * 预设助手 · 预设脚本 v3.1.0
+ * （前身为「剧情编年史」，v3.1 起更名「预设助手」）
  * ============================================================================
  *
  * 本文件是代码主体，托管在 https://github.com/haodayizhiyu404/yushe
  * 平时不需要手动维护本文件——酒馆助手的预设脚本库里只需粘贴 loader.js，
  * 每次打开页面会自动从仓库拉取最新版本执行（拉取失败用本地缓存兜底）。
  *
+ * v3.1 更新：
+ *   - 更名「预设助手」（按钮 + 面板标题）
+ *   - 视觉重做：纸张感浅色阅读主题（米白底暖灰字、行距宽松），附日/夜切换，
+ *     选择存全局变量；修掉酒馆全局样式覆盖导致的白输入框/文本框高度异常
+ *   - 讨论气泡去掉名字标识（左右+颜色区分），✕/⟳ 挪到气泡外侧悬停显现，
+ *     删除加二次确认
+ *   - 设置页改为全部自动保存，仅保留「恢复默认」按钮
+ *
  * v3.0 更新：
- *   - UI 重做：三个按钮合并为一个「📖 剧情编年史」，单面板 + 左侧导航
- *     （总结 / 规划 / 切换 / 设置四页），玻璃拟态风格自定义样式
+ *   - UI 重做：三个按钮合并为一个，单面板 + 左侧导航（总结/规划/切换/设置）
  *   - 分发方式改为仓库 + 加载器
  *
  * 设计理念（v2 起）：
@@ -35,9 +43,9 @@
  */
 
 $(() => {
-    const VERSION = '3.0.0';
+    const VERSION = '3.1.0';
     const SCRIPT_ID = 'preset-novel-summarizer';
-    const BUTTON_NAME = '📖 剧情编年史';
+    const BUTTON_NAME = '🧰 预设助手';
 
     // ============================== 默认设置 ==============================
     // 设置保存在预设变量中，这里只是首次使用时的默认值
@@ -86,6 +94,14 @@ $(() => {
     }
     function saveApiConfig(api) {
         insertOrAssignVariables({ [`${SCRIPT_ID}_api`]: api }, { type: 'global' });
+    }
+
+    /** 面板主题（light/dark） → 全局变量（跟随用户本地，不随预设导出） */
+    function loadTheme() {
+        return getVariables({ type: 'global' })[`${SCRIPT_ID}_theme`] === 'dark' ? 'dark' : 'light';
+    }
+    function saveTheme(theme) {
+        insertOrAssignVariables({ [`${SCRIPT_ID}_theme`]: theme }, { type: 'global' });
     }
 
     /** 大总结与进度 → 聊天变量（跟着聊天存档走） */
@@ -269,8 +285,8 @@ $(() => {
         const lastMsgId = batch[batch.length - 1].message_id;
         const wasEnabled = entry.enabled;
         toastr.info(isBatched
-            ? `剧情编年史：积压 ${processable.length} 楼，本次先总结到 #${lastMsgId}（每批 ${batchSize} 楼）...`
-            : `剧情编年史：正在生成大总结（将覆盖到 #${lastMsgId}）...`);
+            ? `预设助手：积压 ${processable.length} 楼，本次先总结到 #${lastMsgId}（每批 ${batchSize} 楼）...`
+            : `预设助手：正在生成大总结（将覆盖到 #${lastMsgId}）...`);
 
         try {
             // 临时隐藏本批之外的可见楼层（最近 N 楼保留区 + 超批积压），finally 中精确恢复
@@ -323,11 +339,11 @@ $(() => {
             injectSummary();
             const remaining = processable.length - batch.length;
             toastr.success(remaining > 0
-                ? `剧情编年史：已总结到 #${lastMsgId}（${summaryText.length} 字符），还有 ${remaining} 楼积压，可再次点击「立即总结」`
-                : `剧情编年史：已生成总结（覆盖到 #${lastMsgId}，${summaryText.length} 字符）`);
+                ? `预设助手：已总结到 #${lastMsgId}（${summaryText.length} 字符），还有 ${remaining} 楼积压，可再次点击「立即总结」`
+                : `预设助手：已生成总结（覆盖到 #${lastMsgId}，${summaryText.length} 字符）`);
         } catch (err) {
             console.error(`[${SCRIPT_ID}] 总结失败`, err);
-            toastr.error(`剧情编年史：总结失败 - ${err.message || err}`);
+            toastr.error(`预设助手：总结失败 - ${err.message || err}`);
         } finally {
             // 无论成败：恢复临时隐藏的楼层 + 恢复总结条目原状态
             try {
@@ -441,69 +457,101 @@ $(() => {
         return await generatePlannerReply();
     }
 
-    // ============================ UI：样式 ============================
+    // ============================ UI：样式（日/夜双主题） ============================
 
     const YCH_STYLE_ID = 'ych-style';
     const YCH_CSS = `
 .ych-overlay{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;
-    background:rgba(8,10,18,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
-.ych-panel{width:min(960px,94vw);height:min(700px,90vh);display:flex;flex-direction:column;border-radius:16px;overflow:hidden;
-    color:#e8eaf2;font-size:13px;font-family:inherit;text-align:left;
-    background:linear-gradient(160deg,rgba(32,36,54,.84),rgba(18,20,32,.88));
-    border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 60px rgba(0,0,0,.55);
-    backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);}
+    background:rgba(50,45,35,.32);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+.ych-overlay[data-theme="dark"]{background:rgba(0,0,0,.5);}
+.ych-panel{
+    --bg:#f6f2ea;--surface:#fffdf7;--surface2:#efe9dc;
+    --text:#45403a;--dim:#98917f;
+    --border:rgba(80,70,50,.16);
+    --accent:#6b8cae;--accent-soft:rgba(107,140,174,.13);--accent-line:rgba(107,140,174,.5);
+    --danger:#bf6a63;--danger-soft:rgba(191,106,99,.1);
+    --bubble-user:#dfe9f2;--bubble-ai:#fffdf7;
+    --input-bg:#fffdf7;--input-text:#45403a;--placeholder:#b6ad9a;
+    width:min(960px,94vw);height:min(700px,90vh);display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
+    background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;font-family:inherit;text-align:left;
+    border:1px solid var(--border);box-shadow:0 16px 50px rgba(40,35,25,.28);}
+.ych-overlay[data-theme="dark"] .ych-panel{
+    --bg:#272520;--surface:#312e27;--surface2:#3b372e;
+    --text:#dcd5c6;--dim:#8d8675;
+    --border:rgba(230,220,200,.13);
+    --accent:#8aa8c8;--accent-soft:rgba(138,168,200,.15);--accent-line:rgba(138,168,200,.55);
+    --danger:#cf8279;--danger-soft:rgba(207,130,121,.12);
+    --bubble-user:#34404e;--bubble-ai:#312e27;
+    --input-bg:#211f1a;--input-text:#dcd5c6;--placeholder:#6f695a;
+    box-shadow:0 16px 50px rgba(0,0,0,.5);}
 .ych-header{display:flex;align-items:center;gap:12px;padding:10px 16px;
-    border-bottom:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);}
-.ych-title{font-weight:700;font-size:14px;white-space:nowrap;}
-.ych-status{flex:1;text-align:center;opacity:.6;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.ych-close{background:none;border:none;color:inherit;font-size:15px;cursor:pointer;opacity:.6;padding:2px 8px;border-radius:6px;}
-.ych-close:hover{opacity:1;background:rgba(255,255,255,.1);}
+    border-bottom:1px solid var(--border);background:var(--surface);}
+.ych-title{font-weight:700;font-size:15px;white-space:nowrap;}
+.ych-status{flex:1;text-align:center;color:var(--dim);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ych-icon-btn{background:none;border:none;color:var(--text);font-size:15px;cursor:pointer;
+    opacity:.55;padding:2px 8px;border-radius:6px;}
+.ych-icon-btn:hover{opacity:1;background:var(--accent-soft);}
 .ych-body{flex:1;display:flex;min-height:0;}
-.ych-nav{width:106px;flex:0 0 auto;display:flex;flex-direction:column;gap:4px;padding:12px 8px;
-    border-right:1px solid rgba(255,255,255,.08);}
-.ych-nav-item{padding:9px 10px;border-radius:9px;cursor:pointer;opacity:.65;white-space:nowrap;
-    transition:background .15s,opacity .15s;user-select:none;}
-.ych-nav-item:hover{opacity:.9;background:rgba(255,255,255,.06);}
-.ych-nav-item.ych-active{opacity:1;background:rgba(122,162,247,.16);box-shadow:inset 2px 0 0 #7aa2f7;font-weight:600;}
-.ych-content{flex:1;min-width:0;padding:14px 16px;display:flex;}
+.ych-nav{width:110px;flex:0 0 auto;display:flex;flex-direction:column;gap:4px;padding:12px 8px;
+    border-right:1px solid var(--border);background:var(--surface);}
+.ych-nav-item{padding:9px 12px;border-radius:9px;cursor:pointer;color:var(--dim);white-space:nowrap;
+    transition:background .15s,color .15s;user-select:none;}
+.ych-nav-item:hover{color:var(--text);background:var(--accent-soft);}
+.ych-nav-item.ych-active{color:var(--text);background:var(--accent-soft);
+    box-shadow:inset 2px 0 0 var(--accent);font-weight:600;}
+.ych-content{flex:1;min-width:0;padding:16px 18px;display:flex;}
 .ych-tab{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0;height:100%;overflow-y:auto;padding-right:4px;}
-.ych-label{opacity:.8;}
-.ych-dim{opacity:.55;font-size:12px;line-height:1.5;}
-.ych-hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:2px 0;width:100%;}
+.ych-label{color:var(--dim);font-size:13px;}
+.ych-dim{color:var(--dim);font-size:12px;line-height:1.6;}
+.ych-hr{border:none;border-top:1px solid var(--border);margin:4px 0;width:100%;}
 .ych-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-.ych-input{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.13);border-radius:8px;
-    padding:8px 10px;color:#e8eaf2;font-size:13px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;}
-.ych-input:focus{border-color:rgba(122,162,247,.6);box-shadow:0 0 0 2px rgba(122,162,247,.15);}
-textarea.ych-input{resize:vertical;line-height:1.55;}
-.ych-summary-text{flex:1;min-height:200px;}
-.ych-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:8px;
-    padding:6px 14px;color:#e8eaf2;font-size:13px;cursor:pointer;white-space:nowrap;
+.ych-section-title{font-weight:700;margin-top:6px;}
+/* 输入框：高优先级 + !important 压过酒馆全局样式（否则白底/高度异常） */
+.ych-overlay .ych-panel input.ych-input,.ych-overlay .ych-panel textarea.ych-input{
+    background:var(--input-bg) !important;color:var(--input-text) !important;
+    border:1px solid var(--border) !important;border-radius:8px;padding:8px 12px;
+    font-size:14px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;
+    line-height:1.6;box-shadow:none;}
+.ych-overlay .ych-panel input.ych-input:focus,.ych-overlay .ych-panel textarea.ych-input:focus{
+    border-color:var(--accent-line) !important;box-shadow:0 0 0 2px var(--accent-soft);}
+.ych-overlay .ych-panel .ych-input::placeholder{color:var(--placeholder) !important;opacity:1;}
+.ych-overlay .ych-panel textarea.ych-input{height:auto !important;resize:vertical;line-height:1.6;}
+.ych-overlay .ych-panel textarea.ych-summary-text{flex:1;min-height:220px;line-height:1.85;padding:12px 14px;}
+.ych-btn{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+    padding:6px 14px;color:var(--text);font-size:14px;cursor:pointer;white-space:nowrap;
     transition:background .15s,border-color .15s;font-family:inherit;}
-.ych-btn:hover:not(:disabled){background:rgba(255,255,255,.14);}
+.ych-btn:hover:not(:disabled){background:var(--surface2);}
 .ych-btn:disabled{opacity:.4;cursor:default;}
-.ych-btn-primary{background:rgba(122,162,247,.18);border-color:rgba(122,162,247,.5);}
-.ych-btn-primary:hover:not(:disabled){background:rgba(122,162,247,.3);}
-.ych-btn-danger{color:#ff9aa2;border-color:rgba(224,108,117,.4);}
-.ych-btn-danger:hover:not(:disabled){background:rgba(224,108,117,.15);}
-.ych-chip{padding:5px 14px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
-    color:#e8eaf2;cursor:pointer;font-size:13px;white-space:nowrap;transition:background .15s,border-color .15s;font-family:inherit;}
-.ych-chip:hover:not(:disabled){background:rgba(255,255,255,.13);}
+.ych-btn-primary{background:var(--accent-soft);border-color:var(--accent-line);}
+.ych-btn-primary:hover:not(:disabled){background:var(--accent-soft);border-color:var(--accent);
+    box-shadow:0 1px 6px var(--accent-soft);}
+.ych-btn-danger{color:var(--danger);border-color:var(--danger);}
+.ych-btn-danger:hover:not(:disabled){background:var(--danger-soft);}
+.ych-chip{padding:5px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--border);
+    color:var(--text);cursor:pointer;font-size:13px;white-space:nowrap;
+    transition:background .15s,border-color .15s;font-family:inherit;}
+.ych-chip:hover:not(:disabled){background:var(--surface2);}
 .ych-chip:disabled{opacity:.4;cursor:default;}
-.ych-chip-active{background:rgba(122,162,247,.22);border-color:rgba(122,162,247,.65);font-weight:600;}
-.ych-log{flex:1;min-height:150px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);border-radius:10px;
-    padding:10px;display:flex;flex-direction:column;gap:8px;background:rgba(0,0,0,.18);}
-.ych-bubble{max-width:88%;padding:7px 11px;border-radius:10px;white-space:pre-wrap;word-break:break-word;
-    border:1px solid rgba(255,255,255,.1);line-height:1.55;}
-.ych-bubble-user{align-self:flex-end;background:rgba(122,162,247,.16);}
-.ych-bubble-ai{align-self:flex-start;background:rgba(255,255,255,.06);}
-.ych-bubble-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:11px;opacity:.65;margin-bottom:2px;}
-.ych-bubble-head a{color:inherit;text-decoration:none;cursor:pointer;margin-left:6px;opacity:.8;}
-.ych-bubble-head a:hover{opacity:1;text-shadow:0 0 6px rgba(255,255,255,.6);}
-.ych-section-title{font-weight:700;opacity:.9;margin-top:4px;}
-.ych-check{display:flex;align-items:center;gap:6px;opacity:.85;cursor:pointer;}
+.ych-chip-active{background:var(--accent-soft);border-color:var(--accent-line);font-weight:600;}
+.ych-log{flex:1;min-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;
+    padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface2);}
+.ych-bubble{position:relative;max-width:85%;padding:8px 14px;border-radius:12px;
+    white-space:pre-wrap;word-break:break-word;line-height:1.7;font-size:14px;}
+.ych-bubble-user{align-self:flex-end;background:var(--bubble-user);}
+.ych-bubble-ai{align-self:flex-start;background:var(--bubble-ai);border:1px solid var(--border);}
+/* 操作按钮放在气泡外侧（自己的气泡在左，策划的在右），常态淡显、悬停清晰 */
+.ych-bubble-actions{position:absolute;top:6px;display:flex;gap:8px;font-size:13px;
+    opacity:.25;transition:opacity .15s;}
+.ych-bubble:hover .ych-bubble-actions{opacity:.8;}
+.ych-bubble-user .ych-bubble-actions{right:calc(100% + 8px);}
+.ych-bubble-ai .ych-bubble-actions{left:calc(100% + 8px);}
+.ych-bubble-actions a{color:var(--text);text-decoration:none;cursor:pointer;}
+.ych-bubble-actions a:hover{opacity:1;text-shadow:0 0 6px var(--accent);}
+.ych-check{display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;font-size:14px;}
+.ych-saved{font-size:12px;color:var(--accent);opacity:0;transition:opacity .3s;}
 .ych-tab::-webkit-scrollbar,.ych-log::-webkit-scrollbar,.ych-content textarea::-webkit-scrollbar{width:8px;}
 .ych-tab::-webkit-scrollbar-thumb,.ych-log::-webkit-scrollbar-thumb,.ych-content textarea::-webkit-scrollbar-thumb{
-    background:rgba(255,255,255,.15);border-radius:4px;}
+    background:var(--border);border-radius:4px;}
 .ych-tab::-webkit-scrollbar-track,.ych-log::-webkit-scrollbar-track,.ych-content textarea::-webkit-scrollbar-track{background:transparent;}
 `;
 
@@ -526,9 +574,10 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
             <div class="ych-overlay">
                 <div class="ych-panel">
                     <div class="ych-header">
-                        <div class="ych-title">📖 剧情编年史 <span style="opacity:.4;font-weight:400;font-size:11px;">v${VERSION}</span></div>
+                        <div class="ych-title">🧰 预设助手 <span style="opacity:.4;font-weight:400;font-size:11px;">v${VERSION}</span></div>
                         <div class="ych-status"></div>
-                        <button class="ych-close" title="关闭（Esc）">✕</button>
+                        <button class="ych-icon-btn ych-theme-toggle" title="切换日/夜主题">🌙</button>
+                        <button class="ych-icon-btn ych-close" title="关闭（Esc）">✕</button>
                     </div>
                     <div class="ych-body">
                         <div class="ych-nav">
@@ -545,6 +594,18 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
 
         const $content = $overlay.find('.ych-content');
         const refreshHeader = () => $overlay.find('.ych-status').text(getStatusLine());
+
+        // 日/夜主题（存全局变量，跟随用户本地）
+        const applyTheme = (theme) => {
+            $overlay.attr('data-theme', theme);
+            $overlay.find('.ych-theme-toggle').text(theme === 'dark' ? '☀️' : '🌙');
+        };
+        applyTheme(loadTheme());
+        $overlay.find('.ych-theme-toggle').on('click', () => {
+            const next = $overlay.attr('data-theme') === 'dark' ? 'light' : 'dark';
+            saveTheme(next);
+            applyTheme(next);
+        });
 
         // 离开标签页时的收尾（冲刷防抖保存计时器，防止未落盘的编辑丢失）
         let onLeave = null;
@@ -608,28 +669,28 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
         `);
         $content.append($tab);
 
-        const $text = $tab.find('.ns-summary, .ych-summary-text').first();
+        const $text = $tab.find('.ych-summary-text');
         $text.val(data.bigSummary);
 
         // 大总结编辑：防抖自动保存（停止输入 1 秒后写入并重新注入）
         let saveTimer = null;
-        const flushSave = () => {
-            if (saveTimer === null) return;
-            clearTimeout(saveTimer);
-            saveTimer = null;
+        const doSave = () => {
             const d = getChatData();
             d.bigSummary = $text.val();
             saveChatData(d);
             injectSummary();
         };
+        const flushSave = () => {
+            if (saveTimer === null) return;
+            clearTimeout(saveTimer);
+            saveTimer = null;
+            doSave();
+        };
         $text.on('input', () => {
             clearTimeout(saveTimer);
             saveTimer = setTimeout(() => {
                 saveTimer = null;
-                const d = getChatData();
-                d.bigSummary = $text.val();
-                saveChatData(d);
-                injectSummary();
+                doSave();
                 ctx.refreshHeader();
             }, 1000);
         });
@@ -686,7 +747,7 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
                     <div class="ych-label" style="margin:0;">🎲 快速提案（点一个风格，按设置里的提案模板发出方向指令）：</div>
                     <div class="ych-row np-styles"></div>
                 </div>
-                <div class="ych-label">规划讨论（✕ 单条删除，最后一条策划回复可 ⟳ 重 roll；AI 能看到当前剧情与全部讨论记录）：</div>
+                <div class="ych-label">规划讨论（悬停气泡可 ✕ 删除，最后一条策划回复可 ⟳ 重 roll）：</div>
                 <div class="ych-log np-log"></div>
                 <div style="display:flex;gap:8px;align-items:flex-end;">
                     <textarea class="ych-input np-input" rows="2" style="flex:1 1 auto;" placeholder="对提案不满意？在这里微调，比如「再激烈一点」「换一个方向」"></textarea>
@@ -751,18 +812,16 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
                 const isLastAssistant = !isUser && idx === hist.length - 1;
                 const $bubble = $(`
                     <div class="ych-bubble ${isUser ? 'ych-bubble-user' : 'ych-bubble-ai'}">
-                        <div class="ych-bubble-head">
-                            <span>${isUser ? '作者' : '🧭 策划'}</span>
-                            <span>
-                                ${isLastAssistant ? '<a href="javascript:;" class="np-reroll" title="重 roll：删掉这条并重新生成">⟳</a>' : ''}
-                                <a href="javascript:;" class="np-del" title="删除这条记录">✕</a>
-                            </span>
+                        <div class="ych-bubble-actions">
+                            ${isLastAssistant ? '<a href="javascript:;" class="np-reroll" title="重 roll：删掉这条并重新生成">⟳</a>' : ''}
+                            <a href="javascript:;" class="np-del" title="删除这条记录">✕</a>
                         </div>
                         <div>${escapeHtml(m.content)}</div>
                     </div>
                 `);
                 $bubble.find('.np-del').on('click', () => {
                     if (isPlanning) { toastr.warning('策划正在思考中，请稍等'); return; }
+                    if (!confirm('删除这条讨论记录？')) return;
                     const d = getChatData();
                     d.planningHistory.splice(idx, 1);
                     saveChatData(d);
@@ -805,23 +864,23 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
 
         // 走向编辑：防抖自动保存 + 重新注入
         let outlineSaveTimer = null;
-        const flushOutline = () => {
-            if (outlineSaveTimer === null) return;
-            clearTimeout(outlineSaveTimer);
-            outlineSaveTimer = null;
+        const doOutlineSave = () => {
             const d = getChatData();
             d.outline = $outline.val();
             saveChatData(d);
             injectOutline();
         };
+        const flushOutline = () => {
+            if (outlineSaveTimer === null) return;
+            clearTimeout(outlineSaveTimer);
+            outlineSaveTimer = null;
+            doOutlineSave();
+        };
         $outline.on('input', () => {
             clearTimeout(outlineSaveTimer);
             outlineSaveTimer = setTimeout(() => {
                 outlineSaveTimer = null;
-                const d = getChatData();
-                d.outline = $outline.val();
-                saveChatData(d);
-                injectOutline();
+                doOutlineSave();
             }, 1000);
         });
 
@@ -929,7 +988,7 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
         return null;
     }
 
-    // ============================ UI：设置页 ============================
+    // ============================ UI：设置页（全部自动保存） ============================
 
     function renderSettingsTab($content, ctx) {
         const settings = loadSettings();
@@ -937,6 +996,11 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
 
         const $tab = $(`
             <div class="ych-tab">
+                <div class="ych-row" style="justify-content:space-between;">
+                    <div class="ych-dim">所有改动停止输入 1 秒后自动保存，无需手动操作。</div>
+                    <span class="ych-saved">✓ 已保存</span>
+                </div>
+
                 <div class="ych-section-title">总结</div>
                 <div class="ych-label">总结条目 ID/名称（预设中那个默认关闭的总结提示词条目）：</div>
                 <input class="ych-input ns-s-entry" type="text" />
@@ -984,7 +1048,6 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
 
                 <hr class="ych-hr" />
                 <div class="ych-row">
-                    <button class="ych-btn ych-btn-primary ns-save-settings">💾 保存设置</button>
                     <button class="ych-btn ns-reset-settings">🔄 恢复默认设置</button>
                 </div>
                 <div class="ych-dim">设置保存在预设变量中（随预设导出），API 配置保存在全局变量中（只存本地）。</div>
@@ -1009,7 +1072,8 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
         $tab.find('.ns-s-key').val(apiConfig.customApiKey);
         $tab.find('.ns-s-model').val(apiConfig.customModel);
 
-        $tab.find('.ns-save-settings').on('click', () => {
+        // 收集并保存（设置 → 预设变量；API → 全局变量）
+        const collectAndSave = () => {
             const s = loadSettings();
             s.entryKey = $tab.find('.ns-s-entry').val().trim() || '📢大总结';
             s.plannerEntryKey = $tab.find('.ns-s-planner-entry').val().trim() || '🧭剧情规划';
@@ -1030,18 +1094,44 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
                 customApiKey: $tab.find('.ns-s-key').val().trim(),
                 customModel: $tab.find('.ns-s-model').val().trim(),
             });
-            injectSummary();
-            toastr.success('设置已保存（API 配置仅存本地，其余随预设导出）');
-        });
+            injectSummary();  // 注入标签可能变了，立即重新注入
+        };
+
+        // 防抖自动保存 + 「已保存」指示
+        let saveTimer = null;
+        let savedFlashTimer = null;
+        const scheduleSave = () => {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+                saveTimer = null;
+                collectAndSave();
+                const $saved = $tab.find('.ych-saved');
+                $saved.css('opacity', 1);
+                clearTimeout(savedFlashTimer);
+                savedFlashTimer = setTimeout(() => $saved.css('opacity', 0), 1500);
+            }, 1000);
+        };
+        $tab.on('input', 'input.ych-input, textarea.ych-input', scheduleSave);
+        $tab.on('change', 'input[type="checkbox"]', scheduleSave);
 
         $tab.find('.ns-reset-settings').on('click', () => {
-            if (!confirm('确定要恢复默认设置吗？当前自定义设置会被覆盖。')) return;
+            if (!confirm('确定要恢复默认设置吗？当前自定义设置会被覆盖。（API 配置不受影响）')) return;
+            clearTimeout(saveTimer);
+            saveTimer = null;
             saveSettings({ ...DEFAULT_SETTINGS });
+            injectSummary();
             toastr.success('已恢复默认设置');
             ctx.showTab('settings');  // 重渲染显示默认值
         });
 
-        return null;
+        // 离开设置页时冲刷未落盘的编辑
+        return () => {
+            if (saveTimer !== null) {
+                clearTimeout(saveTimer);
+                saveTimer = null;
+                collectAndSave();
+            }
+        };
     }
 
     // ============================ 启动 ============================
@@ -1052,5 +1142,5 @@ textarea.ych-input{resize:vertical;line-height:1.55;}
     eventOn(tavern_events.GENERATION_AFTER_COMMANDS, () => injectAll());
     injectAll();
 
-    console.log(`[${SCRIPT_ID}] 剧情编年史 v${VERSION} 已加载（当前预设：${getLoadedPresetName()}）`);
+    console.log(`[${SCRIPT_ID}] 预设助手 v${VERSION} 已加载（当前预设：${getLoadedPresetName()}）`);
 });
