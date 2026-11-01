@@ -1,12 +1,16 @@
 /*
  * ============================================================================
- * 预设助手 · 预设脚本 v3.1.2
+ * 预设助手 · 预设脚本 v3.1.3
  * （前身为「剧情编年史」，v3.1 起更名「预设助手」）
  * ============================================================================
  *
  * 本文件是代码主体，托管在 https://github.com/haodayizhiyu404/yushe
  * 平时不需要手动维护本文件——酒馆助手的预设脚本库里只需粘贴 loader.js，
  * 每次打开页面会自动从仓库拉取最新版本执行（拉取失败用本地缓存兜底）。
+ *
+ * v3.1.3 修正：
+ *   - 窄屏下面板整体消失：弃用 flex 居中，改块级布局 + margin 居中（任何视口都落在屏幕内）
+ *   - 催化风格列表改为单行 | 分隔编辑（兼容全角｜与旧换行格式）
  *
  * v3.1.2 修正：
  *   - F12/设备仿真时面板飞出屏幕顶部：改 margin:auto 居中 + overlay 可滚动 + 限高 94vh
@@ -53,7 +57,7 @@
  */
 
 $(() => {
-    const VERSION = '3.1.2';
+    const VERSION = '3.1.3';
     const SCRIPT_ID = 'preset-novel-summarizer';
     const BUTTON_NAME = '🧰 预设助手';
 
@@ -67,7 +71,7 @@ $(() => {
         maxBatchSize: 200,                  // 单次最多总结楼层数（积压量大时分批，减轻单次生成压力）
         injectionLabel: '历史剧情',          // 注入大总结时的开头标签
         hideAfterSummary: true,             // 总结后隐藏已总结楼层
-        // 剧情催化的风格快捷提案按钮（一行一个，可在设置中编辑）
+        // 剧情催化的风格快捷提案按钮（设置中用 | 分隔编辑）
         plannerStyles: ['激烈冲突', '情感折磨', '宿命感', '事业成长'],
         // 走向模块的标签名（需与预设规划条目里输出契约的标签一致）
         outlineTag: '剧情走向',
@@ -471,12 +475,12 @@ $(() => {
 
     const YCH_STYLE_ID = 'ych-style';
     const YCH_CSS = `
-.ych-overlay{position:fixed;inset:0;z-index:20000;display:flex;overflow:auto;
+.ych-overlay{position:fixed;inset:0;z-index:20000;display:block;overflow:auto;
     background:rgba(50,45,35,.32);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
 .ych-overlay[data-theme="dark"]{background:rgba(0,0,0,.5);}
-/* margin:auto 居中：面板比视口高时对齐顶部并可滚动，不会被居中裁掉上半截 */
+/* 块级布局 + margin 居中：任何视口尺寸下面板都完整落在屏幕内（flex 居中在溢出时会裁掉上半截） */
 .ych-panel{
-    margin:auto;max-height:94vh;
+    margin:3vh auto;max-height:94vh;
     --bg:#f6f2ea;--surface:#fffdf7;--surface2:#efe9dc;
     --text:#45403a;--dim:#98917f;
     --border:rgba(80,70,50,.16);
@@ -571,7 +575,7 @@ $(() => {
 .ych-tab::-webkit-scrollbar-track,.ych-log::-webkit-scrollbar-track,.ych-content textarea::-webkit-scrollbar-track{background:transparent;}
 /* 窄屏（手机/设备仿真）：面板全屏、左侧导航变顶部横排 */
 @media (max-width:640px){
-    .ych-panel{width:100vw;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0;}
+    .ych-panel{width:100vw;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;margin:0;border-radius:0;}
     .ych-body{flex-direction:column;}
     .ych-nav{width:auto;flex-direction:row;padding:6px 8px;border-right:none;border-bottom:1px solid var(--border);overflow-x:auto;}
     .ych-nav-item{flex:1;text-align:center;padding:8px 6px;}
@@ -1066,8 +1070,8 @@ $(() => {
                 <input class="ych-input ns-s-planner-entry" type="text" />
                 <div class="ych-label">走向模块标签名（需与预设规划条目里输出契约的标签一致）：</div>
                 <input class="ych-input ns-s-tag" type="text" />
-                <div class="ych-label">催化风格列表（规划页的快捷提案按钮，一行一个）：</div>
-                <textarea class="ych-input ns-s-styles" rows="4"></textarea>
+                <div class="ych-label">催化风格列表（规划页的快捷提案按钮，用 | 分隔）：</div>
+                <input class="ych-input ns-s-styles" type="text" placeholder="激烈冲突 | 情感折磨 | 宿命感 | 事业成长" />
                 <div class="ych-label">风格提案模板（点风格按钮时发送，{{风格}} 会被替换为风格名）：</div>
                 <textarea class="ych-input ns-s-template" rows="4"></textarea>
 
@@ -1103,7 +1107,7 @@ $(() => {
         $tab.find('.ns-s-batch').val(settings.maxBatchSize);
         $tab.find('.ns-s-label').val(settings.injectionLabel);
         $tab.find('.ns-s-hide').prop('checked', settings.hideAfterSummary);
-        $tab.find('.ns-s-styles').val((settings.plannerStyles || []).join('\n'));
+        $tab.find('.ns-s-styles').val((settings.plannerStyles || []).join(' | '));
         $tab.find('.ns-s-tag').val(settings.outlineTag);
         $tab.find('.ns-s-template').val(settings.proposalTemplate);
         $tab.find('.ns-s-switch').val(formatSwitchRules(settings.switchRules));
@@ -1122,7 +1126,8 @@ $(() => {
             s.maxBatchSize = Math.max(1, parseInt($tab.find('.ns-s-batch').val(), 10) || 200);
             s.injectionLabel = $tab.find('.ns-s-label').val().trim() || '历史剧情';
             s.hideAfterSummary = $tab.find('.ns-s-hide').prop('checked');
-            s.plannerStyles = $tab.find('.ns-s-styles').val().split('\n').map(x => x.trim()).filter(Boolean);
+            // 风格列表：| 分隔（兼容全角｜和历史遗留的换行格式），逐项去空格
+            s.plannerStyles = $tab.find('.ns-s-styles').val().split(/[|｜\n]/).map(x => x.trim()).filter(Boolean);
             s.outlineTag = $tab.find('.ns-s-tag').val().trim() || '剧情走向';
             s.proposalTemplate = $tab.find('.ns-s-template').val().trim() || DEFAULT_SETTINGS.proposalTemplate;
             s.switchRules = parseSwitchRules($tab.find('.ns-s-switch').val());
