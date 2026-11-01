@@ -1,12 +1,17 @@
 /*
  * ============================================================================
- * 预设助手 · 预设脚本 v3.1.0
+ * 预设助手 · 预设脚本 v3.1.1
  * （前身为「剧情编年史」，v3.1 起更名「预设助手」）
  * ============================================================================
  *
  * 本文件是代码主体，托管在 https://github.com/haodayizhiyu404/yushe
  * 平时不需要手动维护本文件——酒馆助手的预设脚本库里只需粘贴 loader.js，
  * 每次打开页面会自动从仓库拉取最新版本执行（拉取失败用本地缓存兜底）。
+ *
+ * v3.1.1 修正：
+ *   - 设置页文本框被 flex 布局压缩成不足一行：tab 子项禁止压缩
+ *   - 讨论气泡上下大空白：pre-wrap 从气泡容器挪到文字层（结构空白不再渲染）
+ *   - 气泡操作改为下方操作行（⟳ 重roll / 🗑 删除），悬停显现
  *
  * v3.1 更新：
  *   - 更名「预设助手」（按钮 + 面板标题）
@@ -43,7 +48,7 @@
  */
 
 $(() => {
-    const VERSION = '3.1.0';
+    const VERSION = '3.1.1';
     const SCRIPT_ID = 'preset-novel-summarizer';
     const BUTTON_NAME = '🧰 预设助手';
 
@@ -501,6 +506,8 @@ $(() => {
     box-shadow:inset 2px 0 0 var(--accent);font-weight:600;}
 .ych-content{flex:1;min-width:0;padding:16px 18px;display:flex;}
 .ych-tab{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0;height:100%;overflow-y:auto;padding-right:4px;}
+/* 内容超出时容器自己滚动，子项禁止被 flex 压缩（否则 textarea 会被挤成不足一行） */
+.ych-tab>*{flex-shrink:0;}
 .ych-label{color:var(--dim);font-size:13px;}
 .ych-dim{color:var(--dim);font-size:12px;line-height:1.6;}
 .ych-hr{border:none;border-top:1px solid var(--border);margin:4px 0;width:100%;}
@@ -535,18 +542,19 @@ $(() => {
 .ych-chip-active{background:var(--accent-soft);border-color:var(--accent-line);font-weight:600;}
 .ych-log{flex:1;min-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;
     padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface2);}
-.ych-bubble{position:relative;max-width:85%;padding:8px 14px;border-radius:12px;
-    white-space:pre-wrap;word-break:break-word;line-height:1.7;font-size:14px;}
-.ych-bubble-user{align-self:flex-end;background:var(--bubble-user);}
-.ych-bubble-ai{align-self:flex-start;background:var(--bubble-ai);border:1px solid var(--border);}
-/* 操作按钮放在气泡外侧（自己的气泡在左，策划的在右），常态淡显、悬停清晰 */
-.ych-bubble-actions{position:absolute;top:6px;display:flex;gap:8px;font-size:13px;
-    opacity:.25;transition:opacity .15s;}
-.ych-bubble:hover .ych-bubble-actions{opacity:.8;}
-.ych-bubble-user .ych-bubble-actions{right:calc(100% + 8px);}
-.ych-bubble-ai .ych-bubble-actions{left:calc(100% + 8px);}
-.ych-bubble-actions a{color:var(--text);text-decoration:none;cursor:pointer;}
-.ych-bubble-actions a:hover{opacity:1;text-shadow:0 0 6px var(--accent);}
+.ych-bubble{padding:8px 14px;border-radius:12px;line-height:1.7;font-size:14px;}
+/* pre-wrap 只套在文字层：保留消息内的换行，又不把 HTML 结构空白渲染出来 */
+.ych-bubble-text{white-space:pre-wrap;word-break:break-word;}
+.ych-bubble-user{background:var(--bubble-user);}
+.ych-bubble-ai{background:var(--bubble-ai);border:1px solid var(--border);}
+/* 每条消息 = 气泡 + 下方操作行（常态淡显，悬停清晰） */
+.ych-msg{display:flex;flex-direction:column;width:fit-content;max-width:85%;}
+.ych-msg-user{align-self:flex-end;align-items:flex-end;}
+.ych-msg-ai{align-self:flex-start;align-items:flex-start;}
+.ych-msg-actions{display:flex;gap:12px;padding:3px 8px 0;font-size:12px;opacity:.3;transition:opacity .15s;}
+.ych-msg:hover .ych-msg-actions{opacity:.85;}
+.ych-msg-actions a{color:var(--dim);text-decoration:none;cursor:pointer;}
+.ych-msg-actions a:hover{color:var(--text);}
 .ych-check{display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;font-size:14px;}
 .ych-saved{font-size:12px;color:var(--accent);opacity:0;transition:opacity .3s;}
 .ych-tab::-webkit-scrollbar,.ych-log::-webkit-scrollbar,.ych-content textarea::-webkit-scrollbar{width:8px;}
@@ -810,16 +818,16 @@ $(() => {
             hist.forEach((m, idx) => {
                 const isUser = m.role === 'user';
                 const isLastAssistant = !isUser && idx === hist.length - 1;
-                const $bubble = $(`
-                    <div class="ych-bubble ${isUser ? 'ych-bubble-user' : 'ych-bubble-ai'}">
-                        <div class="ych-bubble-actions">
-                            ${isLastAssistant ? '<a href="javascript:;" class="np-reroll" title="重 roll：删掉这条并重新生成">⟳</a>' : ''}
-                            <a href="javascript:;" class="np-del" title="删除这条记录">✕</a>
+                const $msg = $(`
+                    <div class="ych-msg ${isUser ? 'ych-msg-user' : 'ych-msg-ai'}">
+                        <div class="ych-bubble ${isUser ? 'ych-bubble-user' : 'ych-bubble-ai'}"><div class="ych-bubble-text">${escapeHtml(m.content)}</div></div>
+                        <div class="ych-msg-actions">
+                            ${isLastAssistant ? '<a href="javascript:;" class="np-reroll" title="删掉这条并重新生成">⟳ 重roll</a>' : ''}
+                            <a href="javascript:;" class="np-del" title="删除这条记录">🗑 删除</a>
                         </div>
-                        <div>${escapeHtml(m.content)}</div>
                     </div>
                 `);
-                $bubble.find('.np-del').on('click', () => {
+                $msg.find('.np-del').on('click', () => {
                     if (isPlanning) { toastr.warning('策划正在思考中，请稍等'); return; }
                     if (!confirm('删除这条讨论记录？')) return;
                     const d = getChatData();
@@ -829,7 +837,7 @@ $(() => {
                     updateSendState();
                 });
                 if (isLastAssistant) {
-                    $bubble.find('.np-reroll').on('click', () => {
+                    $msg.find('.np-reroll').on('click', () => {
                         if (isPlanning) { toastr.warning('策划正在思考中，请稍等'); return; }
                         const d = getChatData();
                         d.planningHistory.pop();  // 删掉这条 AI 回复，末尾回到对应的 user 消息
@@ -838,7 +846,7 @@ $(() => {
                         doSend('');  // 空发送 = 针对末尾 user 消息重新生成
                     });
                 }
-                $log.append($bubble);
+                $log.append($msg);
             });
             $log.scrollTop($log[0].scrollHeight);
         };
