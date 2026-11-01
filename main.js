@@ -1,12 +1,21 @@
 /*
  * ============================================================================
- * 预设助手 · 预设脚本 v3.1.3
+ * 预设助手 · 预设脚本 v3.1.4
  * （前身为「剧情编年史」，v3.1 起更名「预设助手」）
  * ============================================================================
  *
  * 本文件是代码主体，托管在 https://github.com/haodayizhiyu404/yushe
  * 平时不需要手动维护本文件——酒馆助手的预设脚本库里只需粘贴 loader.js，
  * 每次打开页面会自动从仓库拉取最新版本执行（拉取失败用本地缓存兜底）。
+ *
+ * v3.1.4 修正：
+ *   - 视口宽度 <1000px 时面板整体消失（根因，已用真机环境无头浏览器验证）：
+ *     ST 的 style.css 给 <html> 加了 -webkit-transform:translateZ(0)，transform
+ *     使 html 成为所有 fixed 元素的定位基准（包含块）；<1000px 时 ST 移动端样式
+ *     又把 body 设为 position:fixed，body 脱流导致 html 高度塌成 0，于是蒙层
+ *     inset:0 拉伸出 0 高度，overflow:auto 把面板整个裁掉。修复：蒙层不再依赖
+ *     inset 拉伸，改用 top/left + width:100% + height:100vh/100dvh（视口单位
+ *     始终跟随真实视口，不受包含块影响）。
  *
  * v3.1.3 修正：
  *   - 窄屏下面板整体消失：弃用 flex 居中，改块级布局 + margin 居中（任何视口都落在屏幕内）
@@ -57,7 +66,7 @@
  */
 
 $(() => {
-    const VERSION = '3.1.3';
+    const VERSION = '3.1.4';
     const SCRIPT_ID = 'preset-novel-summarizer';
     const BUTTON_NAME = '🧰 预设助手';
 
@@ -475,7 +484,11 @@ $(() => {
 
     const YCH_STYLE_ID = 'ych-style';
     const YCH_CSS = `
-.ych-overlay{position:fixed;inset:0;z-index:20000;display:block;overflow:auto;
+/* 不用 inset:0 自动拉伸：ST 给 <html> 加了 -webkit-transform，html 成为 fixed 元素的
+   包含块；<1000px 时 ST 移动端把 body 设为 position:fixed，html 高度塌成 0，inset:0
+   会算出 0 高度的蒙层把面板整个裁掉。vh/dvh 视口单位始终跟随真实视口，不受此影响。 */
+.ych-overlay{position:fixed;top:0;left:0;width:100%;height:100vh;height:100dvh;
+    z-index:20000;display:block;overflow:auto;
     background:rgba(50,45,35,.32);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
 .ych-overlay[data-theme="dark"]{background:rgba(0,0,0,.5);}
 /* 块级布局 + margin 居中：任何视口尺寸下面板都完整落在屏幕内（flex 居中在溢出时会裁掉上半截） */
